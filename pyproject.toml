@@ -1,6 +1,6 @@
 [project]
 name = "ai-49"
-version = "2025.09.25.230045"
+version = "2025.09.26.081607"
 description = "ai完成了一切"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,7 +14,7 @@ dwenku8 = "download_wenku8_novels.download_wenku8_novels:download_file"
 cosplay1 = "processing_cosplay_files.processing_cosplay_files1:main"
 cosplay2 = "processing_cosplay_files.processing_cosplay_files2:main"
 htmlentities = "convert_html_entities_in_file.convert_html_entities_in_file:main"
-upmihomo = "up_mihomo.up_mihomo:main"
+upmihomoexe = "up_mihomoexe.up_mihomoexe:main"
 
 [tool.uv]
 package = true
