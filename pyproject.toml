@@ -1,6 +1,6 @@
 [project]
 name = "ai-49"
-version = "2025.09.26.081607"
+version = "2025.10.02.154623"
 description = "ai完成了一切"
 readme = "README.md"
 requires-python = ">=3.12"
