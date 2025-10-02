@@ -2,6 +2,7 @@ import sys
 import cloudscraper
 import re
 import requests
+import html
 
 
 def sanitize_filename(filename):
@@ -26,6 +27,51 @@ def sanitize_filename(filename):
     cleaned = cleaned.strip()[:50]
     # 如果清洗后的文件名为空，则返回默认名称"default"
     return cleaned or "default"
+
+
+def convert_html_entities_in_file(input_file_path, output_file_path):
+    """
+    将HTML文件中的HTML实体转换为对应的字符
+
+    HTML实体是一些特殊字符的编码表示，例如:
+    &amp;  ->  &
+    &lt;   ->  <
+    &gt;   ->  >
+    &quot; ->  "
+
+    Args:
+        input_file_path (str): 输入文件的路径
+        output_file_path (str): 输出文件的路径
+    """
+    # 尝试打开输入文件并读取内容
+    try:
+        # 使用utf-8编码打开文件，确保能正确处理中文等特殊字符
+        with open(input_file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+
+        # 将HTML实体转换为对应的字符
+        # html.unescape()函数可以将HTML实体转换为对应的字符
+        converted_content = html.unescape(content)
+
+        # 将转换后的内容写入输出文件
+        with open(output_file_path, "w", encoding="utf-8") as file:
+            file.write(converted_content)
+
+        # 打印成功信息
+        print(f"转换完成。结果已保存到 {output_file_path}")
+
+    # 捕获文件未找到的异常
+    except FileNotFoundError:
+        print(f"错误: 未找到路径为 {input_file_path} 的文件。")
+    # 捕获权限错误异常
+    except PermissionError:
+        print(f"错误: 没有权限访问文件 {input_file_path} 或 {output_file_path}。")
+    # 捕获编码错误异常
+    except UnicodeDecodeError:
+        print(f"错误: 文件 {input_file_path} 编码格式不正确，无法读取。")
+    # 捕获其他可能的异常
+    except Exception as e:
+        print(f"发生未知错误: {e}")
 
 
 def download_file():
@@ -74,6 +120,10 @@ def download_file():
                 f.write(response.text)
 
             print(f"文件已成功保存为：{filename}")
+
+            # 自动转换HTML实体
+            converted_filename = f"{clean_name}_converted.txt"
+            convert_html_entities_in_file(filename, converted_filename)
         else:
             print("错误: 文件内容不足三行，无法获取文件名")
 
