@@ -39,7 +39,12 @@ def ping_ip(ip, timeout=1):
         start_time = time.time()
         # 执行ping命令并隐藏输出
         result = subprocess.run(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW
+            if platform.system() == "Windows"
+            else 0,
         )
         response_time = (time.time() - start_time) * 1000
 
@@ -87,7 +92,9 @@ def scan_icmp(ips):
         if is_alive:
             print(f"IP: {ip} 通 ({response_time:.2f} ms)")
 
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    # 在Windows上降低并发数以避免句柄问题
+    max_workers = 50 if platform.system() == "Windows" else 100
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(worker, ips)
 
 
@@ -104,7 +111,9 @@ def scan_tcp(ips, ports):
 
     # 创建所有IP和端口的组合
     tasks = [(ip, port) for ip in ips for port in ports]
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    # 在Windows上降低并发数以避免句柄问题
+    max_workers = 50 if platform.system() == "Windows" else 100
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(worker, tasks)
 
 

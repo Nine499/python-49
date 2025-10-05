@@ -32,19 +32,9 @@ def download_and_process_novel(novel_id):
     # 构建下载URL
     url = f"https://dl.wenku8.com/down.php?type=utf8&node=1&id={novel_id}"
 
-    # 设置请求头以避免反爬虫
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Referer": "https://www.wenku8.com/",
-    }
-
     try:
         # 下载小说文件
-        response = requests.get(url, headers=headers)
+        response = requests.get(url)
         response.raise_for_status()
 
         # 生成文件名
