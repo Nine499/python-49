@@ -1,6 +1,6 @@
 [project]
 name = "ai-49"
-version = "2025.10.05.093145"
+version = "2025.10.05.111246"
 description = "ai完成了一切"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -9,7 +9,7 @@ dependencies = [ "beautifulsoup4>=4.14.2", "pyperclip>=1.11.0", "requests>=2.32.
 [project.scripts]
 saoip = "saoip.saoip:main"
 getuuid = "get_uuid.get_uuid:generate_uuid"
-dwenku8 = "download_wenku8_novels.download_wenku8_novels:download_file"
+dwenku8 = "download_wenku8_novels.download_wenku8_novels:main"
 cosplay1 = "processing_cosplay_files.processing_cosplay_files1:main"
 cosplay2 = "processing_cosplay_files.processing_cosplay_files2:main"
 htmlentities = "convert_html_entities_in_file.convert_html_entities_in_file:main"
