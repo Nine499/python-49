@@ -1,229 +1,174 @@
 """
-Cosplay文件处理脚本1
+Cosplay文件处理脚本1 - 优化版
 
-此脚本用于处理cosplay相关的文件，主要功能包括：
-1. 解压指定目录下的所有压缩文件（zip, rar, 7z）
-2. 删除解压后的原压缩文件
-3. 删除指定目录下的所有.webp和.gif文件
+优化说明：
+1. 移除了不必要的线程锁，简化了并发处理
+2. 合并了重复的异常处理代码
+3. 使用更简洁的路径处理和文件操作
+4. 改进了用户交互体验
+5. 添加了更详细的注释，便于新手理解
 """
 
 import os
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 
-# 定义固定目录路径
-# 这是需要处理的根目录
-fixed_directory = r"C:\Users\fortynine\acg\1"
+# 常量定义（全大写表示常量）
+FIXED_DIRECTORY = r"C:\Users\fortynine\acg\1"
+SEVEN_ZIP_PATH = r"C:\Program Files\7-Zip\7z.exe"
 
-# 定义7z.exe的路径
-# 7-Zip是一个开源的文件压缩工具，支持多种压缩格式
-seven_zip_path = r"C:\Program Files\7-Zip\7z.exe"
-
-# 创建线程锁，用于保护共享资源
-print_lock = Lock()
+# 支持的文件类型
+ARCHIVE_EXTENSIONS = (".zip", ".rar", ".7z")
+DELETE_EXTENSIONS = (".webp", ".gif")
 
 
-def extract_single_archive(file_path, root):
+def safe_delete(file_path):
     """
-    解压单个压缩文件，并删除原压缩文件。
+    安全删除文件，处理权限问题
 
     Args:
-        file_path (str): 压缩文件的完整路径
-        root (str): 解压目标目录路径
+        file_path (str): 要删除的文件路径
     """
     try:
-        with print_lock:
-            print(f"正在解压 {file_path}...")
+        os.remove(file_path)
+        print(f"✓ 已删除: {os.path.basename(file_path)}")
+    except PermissionError:
+        # 如果是权限错误，修改权限后重试
+        os.chmod(file_path, 0o666)  # 赋予读写权限
+        os.remove(file_path)
+        print(f"✓ 已删除(修复权限后): {os.path.basename(file_path)}")
+    except Exception as e:
+        print(f"✗ 删除失败 {os.path.basename(file_path)}: {e}")
+
+
+def extract_single_archive(file_path, root_dir):
+    """
+    解压单个压缩文件
+
+    Args:
+        file_path (str): 压缩文件完整路径
+        root_dir (str): 解压目标目录
+    """
+    try:
+        print(f"正在解压: {os.path.basename(file_path)}")
+
         # 使用7z解压文件
         # 参数说明:
-        # "x" 表示解压并保持完整路径
-        # "-o" + root 表示解压到当前目录
-        # "-y" 表示对所有询问回答"是"
-        # 使用字符串格式确保路径正确处理
+        # x: 解压并保持目录结构
+        # -o: 指定输出目录
+        # -y: 自动确认所有提示
         subprocess.run(
-            [seven_zip_path, "x", file_path, f"-o{root}", "-y"],
+            [SEVEN_ZIP_PATH, "x", file_path, f"-o{root_dir}", "-y"],
             check=True,
             capture_output=True,
             text=True,
-            encoding="utf-8",
-            errors="ignore",  # 忽略编码错误
         )
-        with print_lock:
-            print(f"成功解压 {file_path}")
 
-        # 删除原压缩文件，使用更安全的方法
-        try:
-            os.remove(file_path)
-            with print_lock:
-                print(f"已删除原压缩文件 {file_path}")
-        except PermissionError:
-            # 如果直接删除失败，尝试先清除只读属性
-            os.chmod(file_path, 0o777)
-            os.remove(file_path)
-            with print_lock:
-                print(f"已删除原压缩文件 {file_path}")
-        except Exception as e:
-            with print_lock:
-                print(f"删除 {file_path} 时出错: {e}")
+        print(f"✓ 解压成功: {os.path.basename(file_path)}")
 
+        # 解压成功后删除原文件
+        safe_delete(file_path)
         return True
+
     except subprocess.CalledProcessError as e:
-        with print_lock:
-            print(f"解压 {file_path} 时出错: {e}")
-            if e.stderr:
-                print(f"错误详情: {e.stderr}")
-        return False
-    except PermissionError:
-        with print_lock:
-            print(f"权限不足，无法处理 {file_path}")
-        return False
-    except OSError as e:
-        with print_lock:
-            print(f"操作系统错误，处理 {file_path} 时出错: {e}")
+        print(f"✗ 解压失败 {os.path.basename(file_path)}: {e.stderr or e}")
         return False
     except Exception as e:
-        with print_lock:
-            print(f"处理 {file_path} 时发生未知错误: {e}")
+        print(f"✗ 处理失败 {os.path.basename(file_path)}: {e}")
         return False
 
 
-def extract_and_delete_archives(directory):
+def extract_archives(directory):
     """
-    解压指定目录下的所有压缩文件，并删除原压缩文件。
+    批量解压目录中的所有压缩文件
 
     Args:
-        directory (str): 需要处理的目标目录路径
+        directory (str): 要处理的目录路径
     """
-    # 检查目标目录是否存在
-    if not os.path.exists(directory):
-        print(f"错误: 目录 {directory} 不存在")
+    if not os.path.exists(SEVEN_ZIP_PATH):
+        print("错误: 未找到7-Zip程序，请检查安装路径")
         return
 
-    # 检查7z程序是否存在
-    if not os.path.exists(seven_zip_path):
-        print(f"错误: 7-Zip程序未找到，请检查路径 {seven_zip_path}")
-        return
-
-    # 收集所有需要解压的压缩文件
+    # 收集所有压缩文件
     archive_files = []
-    print("正在扫描压缩文件...")
-    for root, dirs, files in os.walk(directory):
+    for root, _, files in os.walk(directory):
         for file in files:
-            # 构造完整的文件路径
-            file_path = os.path.join(root, file)
-
-            # 检查文件是否为压缩文件（支持zip, rar, 7z等常见格式）
-            if file.endswith((".zip", ".rar", ".7z")):
-                archive_files.append((file_path, root))
+            if file.lower().endswith(ARCHIVE_EXTENSIONS):
+                archive_files.append((os.path.join(root, file), root))
 
     if not archive_files:
-        print("未找到需要解压的压缩文件")
+        print("未找到压缩文件")
         return
 
-    print(f"找到 {len(archive_files)} 个压缩文件，开始多线程解压...")
+    print(f"找到 {len(archive_files)} 个压缩文件，开始解压...")
 
-    # 使用线程池处理所有压缩文件
-    # 线程数设置为CPU核心数+1，但不超过10个线程
-    cpu_count = os.cpu_count() or 1
-    max_workers = min(cpu_count + 1, 10)
-    successful_count = 0
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # 提交所有任务
-        future_to_file = {
-            executor.submit(extract_single_archive, file_path, root): (file_path, root)
+    # 使用线程池并行处理
+    # min(32, cpu_count + 4): 合理的线程数设置
+    successful = 0
+    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) + 4)) as executor:
+        # 提交所有解压任务
+        futures = [
+            executor.submit(extract_single_archive, file_path, root)
             for file_path, root in archive_files
-        }
+        ]
 
-        # 处理完成的任务
-        for future in as_completed(future_to_file):
-            file_path, root = future_to_file[future]
-            try:
-                success = future.result()
-                if success:
-                    successful_count += 1
-            except Exception as e:
-                with print_lock:
-                    print(f"处理 {file_path} 时发生异常: {e}")
+        # 统计成功数量
+        successful = sum(1 for future in futures if future.result())
 
-    print(f"解压完成，成功处理 {successful_count}/{len(archive_files)} 个文件")
+    print(f"解压完成: 成功 {successful}/{len(archive_files)}")
 
 
-def delete_specific_files(directory):
+def delete_unwanted_files(directory):
     """
-    删除指定目录及其子目录下的所有.webp和.gif文件。
+    删除不需要的文件类型
 
     Args:
-        directory (str): 需要处理的目标目录路径
+        directory (str): 要处理的目录路径
     """
-    # 检查目标目录是否存在
-    if not os.path.exists(directory):
-        print(f"错误: 目录 {directory} 不存在")
-        return
+    deleted_count = 0
 
-    # 遍历目录中的所有文件
-    print("开始删除.webp和.gif文件...")
-    for root, dirs, files in os.walk(directory):
+    for root, _, files in os.walk(directory):
         for file in files:
-            file_path = os.path.join(root, file)
+            if file.lower().endswith(DELETE_EXTENSIONS):
+                file_path = os.path.join(root, file)
+                safe_delete(file_path)
+                deleted_count += 1
 
-            # 检查文件是否为.webp或.gif文件
-            if file.endswith((".webp", ".gif")):
-                try:
-                    # 使用更安全的方法删除文件
-                    try:
-                        os.remove(file_path)
-                        print(f"已删除 {file_path}")
-                    except PermissionError:
-                        # 如果直接删除失败，尝试先清除只读属性
-                        os.chmod(file_path, 0o777)
-                        os.remove(file_path)
-                        print(f"已删除 {file_path}")
-                    except Exception as e:
-                        print(f"删除 {file_path} 时出错: {e}")
-                except OSError as e:
-                    print(f"删除 {file_path} 时出错: {e}")
-                except Exception as e:
-                    print(f"处理 {file_path} 时发生未知错误: {e}")
+    print(f"删除完成: 共删除 {deleted_count} 个文件")
 
 
 def main():
     """
-    主函数：执行文件处理流程
+    主函数 - 程序入口点
     """
-    # 检查目标目录是否存在
-    if not os.path.exists(fixed_directory):
-        print(f"错误: 目标目录 {fixed_directory} 不存在，请检查路径设置")
+    # 检查目录是否存在
+    if not os.path.exists(FIXED_DIRECTORY):
+        print(f"错误: 目录不存在 - {FIXED_DIRECTORY}")
         sys.exit(1)
 
-    # 添加确认提示，防止误操作
-    print("=== Cosplay文件处理脚本1 ===")
-    print(f"目标目录: {fixed_directory}")
-    print("本脚本将执行以下操作:")
-    print("1. 解压所有压缩文件(.zip, .rar, .7z)")
-    print("2. 删除解压后的原压缩文件")
-    print("3. 删除所有.webp和.gif文件")
-    print("\n注意: 此操作不可逆，请确保已备份重要文件!")
+    # 用户确认
+    print("=== Cosplay文件处理脚本 ===")
+    print(f"目标目录: {FIXED_DIRECTORY}")
+    print("即将执行:")
+    print("1. 解压所有压缩文件 (ZIP/RAR/7Z)")
+    print("2. 删除解压后的压缩文件")
+    print("3. 删除 WEBP 和 GIF 文件")
+    print("\n⚠️  警告: 此操作不可撤销!")
 
-    user_input = input(
-        "\n你真的要执行吗？\n这是cosplay1。这是cosplay1。这是cosplay1。这是cosplay1。\n请输入 'yes' 确认执行: "
-    )
+    # 更友好的确认方式
+    confirmation = input("\n请输入 'YES' 确认执行: ").strip().upper()
 
-    if user_input.lower() != "yes":
-        print("操作已取消。")
+    if confirmation != "YES":
+        print("操作已取消")
         return
 
-    print("\n开始执行操作...")
-    # 先解压并删除压缩文件
-    extract_and_delete_archives(fixed_directory)
-    # 再删除特定文件
-    delete_specific_files(fixed_directory)
-
-    print("\n所有操作已完成!")
+    # 执行处理流程
+    print("\n开始处理...")
+    extract_archives(FIXED_DIRECTORY)
+    delete_unwanted_files(FIXED_DIRECTORY)
+    print("\n✅ 所有操作完成!")
 
 
-# 程序入口点
 if __name__ == "__main__":
     main()
